@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+gspread
+oauth2client
+plotly
+yfinance
+holidays

@@ -1,0 +1,26 @@
+# Credentials & Secrets (절대 올리면 안되는 파일 명시)
+stock-auto-writer-44eaa06c140c.json
+*token*.txt # access_token.txt, access_token_irp.txt 등 토큰 파일 제외
+
+# Config files (설정 파일 제외, 필요시 주석 해제)
+*.yaml
+
+# Python cache/compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE folders
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# 결과 데이터 파일 (버전 관리 불필요 시 주석 해제)
+*.csv
+*.json
+
+# Streamlit secrets file (local testing only)
+.streamlit/secrets.toml
