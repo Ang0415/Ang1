@@ -1,5 +1,5 @@
 # portfolio_performance.py (최종 버전: 배당반영 TWR, 단순손익, 그래프 팝업, 결과 파일 저장, 단순 알림)
-# (Version 5: 최종 공통 마감일 기준 변경 - 평가액>0 마지막 날짜 사용)
+# (Version 5.1: Total TWR 그래프 3일 이동평균선 제거, 평가액>0 마지막 날짜 기준 유지)
 
 import pandas as pd
 import numpy as np
@@ -98,7 +98,7 @@ def read_and_aggregate_data(gc, sheet_names, date_col_idx, deposit_col_idx, with
         try:
             print(f"  ▶️ 시트 '{sheet_name}' 읽는 중...")
             worksheet = spreadsheet.worksheet(sheet_name); data = worksheet.get_all_values()
-            if len(data) < 2: print(f"    - 정보: '{sheet_name}' 데이터 없음."); sheet_dfs[sheet_name] = pd.DataFrame(); continue # 빈 DF 저장
+            if len(data) < 2: print(f"    - 정보: '{sheet_name}' 데이터 없음."); sheet_dfs[sheet_name] = pd.DataFrame(); continue
             header = data[0]; data_rows = data[1:]
             required_indices = [date_col_idx, deposit_col_idx, withdrawal_col_idx, value_col_idx]; max_idx = max(required_indices)
             if max_idx >= len(header): print(f"    - ❌ 오류: '{sheet_name}' 컬럼 수 부족."); sheet_dfs[sheet_name] = pd.DataFrame(); continue
@@ -122,8 +122,8 @@ def read_and_aggregate_data(gc, sheet_names, date_col_idx, deposit_col_idx, with
 
             sheet_dfs[sheet_name] = df
             all_data_list.append(df)
-            print(f"    - '{sheet_name}' 처리 완료 ({len(df)} 행).")
-        except gspread.exceptions.WorksheetNotFound: print(f"    - ⚠️ 경고: 시트 '{sheet_name}' 없음."); sheet_dfs[sheet_name] = pd.DataFrame() # 시트 없으면 빈 DF
+            print(f"    - '{sheet_name}' 처리 완료 ({len(df)} 행, 마지막 날짜: {df.index.max().strftime('%Y-%m-%d') if not df.empty else 'N/A'}).")
+        except gspread.exceptions.WorksheetNotFound: print(f"    - ⚠️ 경고: 시트 '{sheet_name}' 없음."); sheet_dfs[sheet_name] = pd.DataFrame()
         except gspread.exceptions.APIError as e_api: print(f"    - ❌ API 오류 ('{sheet_name}' 읽기 중): {e_api}"); sheet_dfs[sheet_name] = pd.DataFrame()
         except Exception as e: print(f"    - ❌ 오류: '{sheet_name}' 처리 중: {e}"); traceback.print_exc(); sheet_dfs[sheet_name] = pd.DataFrame()
 
@@ -136,26 +136,20 @@ def read_and_aggregate_data(gc, sheet_names, date_col_idx, deposit_col_idx, with
     aggregated_df = aggregated_df.sort_index()
     print(f"  - 집계 완료 (총 {len(aggregated_df)}일 데이터, 날짜 범위: {aggregated_df.index.min().strftime('%Y-%m-%d')} ~ {aggregated_df.index.max().strftime('%Y-%m-%d')})")
 
-    # --- 최종 공통 마감일 결정 (Value > 0 기준) ---
     last_common_date = None
     expected_sheet_count = len(ACCOUNT_SHEETS) if sheet_names == list(ACCOUNT_SHEETS.values()) else len(sheet_names)
 
     if len(sheet_dfs) == expected_sheet_count:
         max_value_dates = []
         for name, df in sheet_dfs.items():
-            # 'Value'가 0보다 큰 데이터만 필터링
             df_filtered = df[df['Value'] > 1e-9]
             if not df_filtered.empty:
                 last_valid_date = df_filtered.index.max()
                 max_value_dates.append(last_valid_date)
                 print(f"    - '{name}' 평가액>0 마지막 날짜: {last_valid_date.strftime('%Y-%m-%d')}")
             else:
-                # Value > 0인 데이터가 없는 경우, 마감일 계산에서 제외됨을 명시
                 print(f"    - '{name}' 평가액>0 데이터 없음 (마감일 계산 제외)")
-                # 필요하다면 이 경우 전체 계산을 중단할 수도 있음
-                # max_value_dates.append(pd.Timestamp.min) # 또는 특정 값으로 표시
 
-        # 모든 시트에서 유효한 마지막 날짜를 찾았는지 확인
         if len(max_value_dates) == expected_sheet_count:
             last_common_date = min(max_value_dates)
             print(f"  - 최종 공통 마감일 결정 (평가액>0 기준): {last_common_date.strftime('%Y-%m-%d')}")
@@ -164,13 +158,9 @@ def read_and_aggregate_data(gc, sheet_names, date_col_idx, deposit_col_idx, with
             filtered_agg_rows = len(aggregated_df)
             if original_agg_rows != filtered_agg_rows: print(f"  - 최종 공통 마감일 기준으로 데이터 필터링 완료 ({filtered_agg_rows}/{original_agg_rows} 행).")
             elif filtered_agg_rows > 0 : print(f"  - 최종 공통 마감일({last_common_date.strftime('%Y-%m-%d')})이 이미 마지막 날짜임. 필터링 불필요.")
-        elif not max_value_dates: # 모든 시트에 유효한 데이터가 없는 경우
-             print("⚠️ 경고: 모든 시트에 평가액>0 데이터가 없어 마감일 제한 불가.")
-        else: # 일부 시트에만 유효한 데이터가 있는 경우
-             print(f"⚠️ 경고: 일부 시트({len(max_value_dates)}/{expected_sheet_count})에만 평가액>0 데이터가 있어 마감일 제한 불가.")
-    else:
-        print(f"⚠️ 경고: 모든 대상 시트({expected_sheet_count}개)를 읽지 못해({len(sheet_dfs)}개) 마감일 제한 적용 안 함.")
-    # --- ---
+        elif not max_value_dates: print("⚠️ 경고: 모든 시트에 평가액>0 데이터가 없어 마감일 제한 불가.")
+        else: print(f"⚠️ 경고: 일부 시트({len(max_value_dates)}/{expected_sheet_count})에만 평가액>0 데이터가 있어 마감일 제한 불가.")
+    else: print(f"⚠️ 경고: 모든 대상 시트({expected_sheet_count}개)를 읽지 못해({len(sheet_dfs)}개) 마감일 제한 적용 안 함.")
 
     if start_date: aggregated_df = aggregated_df[aggregated_df.index >= pd.to_datetime(start_date)]
     if end_date: aggregated_df = aggregated_df[aggregated_df.index <= pd.to_datetime(end_date)]
@@ -232,7 +222,7 @@ def main():
     calculation_success = True
     graph_displayed = False
     data_saved = False
-    last_common_date_used = None # 최종 공통 마감일 저장 변수
+    last_common_date_used = None
 
     gc = connect_google_sheets()
     if not gc: raise ConnectionError("🔥 구글 시트 연결 실패! 종료합니다.")
@@ -241,7 +231,6 @@ def main():
     # --- 1. 전체 포트폴리오 계산 ---
     print("\n>>> 전체 포트폴리오 계산 시작 <<<")
     all_sheet_names = list(ACCOUNT_SHEETS.values())
-    # 수정된 함수는 집계/필터링된 데이터와 최종 마감일 반환
     total_aggregated_data_unadj, last_common_date_used = read_and_aggregate_data(
         gc, all_sheet_names, DATE_COL_IDX, DEPOSIT_COL_IDX, WITHDRAWAL_COL_IDX, VALUE_COL_IDX,
         test_start_date, test_end_date
@@ -258,7 +247,7 @@ def main():
         total_dividend_sum = total_aggregated_data['DividendAmount'].sum()
         if total_dividend_sum > 0: print(f"  - Value 배당 조정 완료 (총: {total_dividend_sum:,.0f})")
 
-        # 계산에 사용할 데이터 (필터링 제거됨)
+        # 계산에 사용할 데이터 (평가액 > 0 필터 제거됨)
         total_aggregated_data_for_calc = total_aggregated_data
 
         if not total_aggregated_data_for_calc.empty:
@@ -306,7 +295,7 @@ def main():
             account_dividend_sum = aggregated_data['DividendAmount'].sum()
             if account_dividend_sum > 0: print(f"  - Value 배당 조정 완료 ({acc_name} 총: {account_dividend_sum:,.0f})")
 
-            # 계산용 데이터 (필터링 제거됨)
+            # 계산용 데이터 (평가액 > 0 필터 제거됨)
             aggregated_data_for_calc = aggregated_data
 
             if not aggregated_data_for_calc.empty:
@@ -351,7 +340,7 @@ def main():
                 if twr_df is not None and not twr_df.empty: temp_df = twr_df.copy(); temp_df['Account'] = acc_name; all_twr_dfs.append(temp_df.reset_index())
             if all_twr_dfs:
                 combined_twr_df = pd.concat(all_twr_dfs, ignore_index=True)
-                if last_common_date_used: # 최종 공통 마감일 필터링
+                if last_common_date_used:
                     combined_twr_df['Date'] = pd.to_datetime(combined_twr_df['Date'])
                     combined_twr_df = combined_twr_df[combined_twr_df['Date'] <= last_common_date_used]
                     print(f"  - TWR 결과 파일 저장 시 최종 공통 마감일({last_common_date_used.strftime('%Y-%m-%d')}) 이전 데이터만 포함합니다.")
@@ -380,18 +369,34 @@ def main():
                      if last_common_date_used: # 최종 공통 마감일 필터링
                          plot_df = plot_df[plot_df.index <= last_common_date_used]
                      if not plot_df.empty:
-                         if acc_name == 'Total':
-                             plot_df['TWR_MA3'] = plot_df['TWR'].rolling(window=3, min_periods=1).mean()
-                             ax.plot(plot_df.index, plot_df['TWR'], label=f'{title_name} TWR', linewidth=1.0, alpha=0.6, color='skyblue')
-                             ax.plot(plot_df.index, plot_df['TWR_MA3'], label=f'{title_name} TWR (3일 이동평균)', linewidth=1.8, color='dodgerblue')
-                             ax.legend()
-                         else: ax.plot(plot_df.index, plot_df['TWR'], label=f'{title_name} TWR', linewidth=1.5, color='dodgerblue')
+                         # **** 수정: Total 그래프 이동평균선 제거 ****
+                         # if acc_name == 'Total':
+                         #     plot_df['TWR_MA3'] = plot_df['TWR'].rolling(window=3, min_periods=1).mean()
+                         #     ax.plot(plot_df.index, plot_df['TWR'], label=f'{title_name} TWR', linewidth=1.0, alpha=0.6, color='skyblue')
+                         #     ax.plot(plot_df.index, plot_df['TWR_MA3'], label=f'{title_name} TWR (3일 이동평균)', linewidth=1.8, color='dodgerblue')
+                         #     ax.legend()
+                         # else: ax.plot(plot_df.index, plot_df['TWR'], label=f'{title_name} TWR', linewidth=1.5, color='dodgerblue')
+                         ax.plot(plot_df.index, plot_df['TWR'], label=f'{title_name} TWR', linewidth=1.5, color='dodgerblue') # 통일된 스타일 적용 (선택적)
+                         # **** --- ****
                          ax.set_title(f'{title_name} 시간가중수익률(TWR)'); ax.set_ylabel('수익률 (%)'); ax.grid(True, linestyle='--', alpha=0.6); plt.setp(ax.get_xticklabels(), rotation=30, ha='right'); ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1)); ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m')); plot_count += 1
                      else: ax.text(0.5, 0.5, f'{title_name}\n데이터 없음', ha='center', va='center', fontsize=12, color='gray'); ax.set_title(f'{title_name} 시간가중수익률(TWR)'); ax.set_xticks([]); ax.set_yticks([])
                 else: ax.text(0.5, 0.5, f'{title_name}\n데이터 없음', ha='center', va='center', fontsize=12, color='gray'); ax.set_title(f'{title_name} 시간가중수익률(TWR)'); ax.set_xticks([]); ax.set_yticks([])
             for j in range(plot_count, len(axes)): axes[j].axis('off')
-            plt.tight_layout(pad=3.0); plt.suptitle("전체 및 계좌별 시간가중수익률(TWR) 및 3일 이동평균 (전체)", fontsize=16, y=1.03)
-            print("✅ 그래프를 화면에 표시합니다..."); plt.show(); graph_displayed = True
+            plt.tight_layout(pad=3.0); plt.suptitle("전체 및 계좌별 시간가중수익률(TWR)", fontsize=16, y=1.03) # 제목에서 이동평균 언급 제거
+            # **** 수정: plt.show() 주석 처리 또는 삭제 ****
+            # print("✅ 그래프를 화면에 표시합니다...")
+            # plt.show() # 자동 실행 위해 주석 처리/삭제
+            graph_displayed = False # 자동 실행 시에는 True로 바꾸지 않음
+            # **** --- ****
+            # 그래프 파일 저장 (옵션 - 필요시 주석 해제)
+            graph_filename = f"twr_performance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            graph_path = os.path.join(CURRENT_DIR, graph_filename)
+            try:
+                 plt.savefig(graph_path)
+                 print(f"✅ 그래프 파일 저장 완료: {graph_path}")
+            except Exception as e_save_fig:
+                 print(f"⚠️ 그래프 파일 저장 실패: {e_save_fig}")
+            plt.close(fig) # 메모리 해제 위해 명시적 종료
         except Exception as e_graph: print(f"❌ 그래프 생성/표시 중 오류 발생: {e_graph}"); traceback.print_exc(); calculation_success = False
     # --- ---
     print("\n--- 모든 작업 완료 ---")
