@@ -1,6 +1,8 @@
 # Credentials & Secrets (절대 올리면 안되는 파일 명시)
 stock-auto-writer-44eaa06c140c.json
-*token*.txt # access_token.txt, access_token_irp.txt 등 토큰 파일 제외
+# access_token.txt, access_token_irp.txt 등 토큰 파일 제외
+*token*.txt 
+access_*.txt
 
 # Config files (설정 파일 제외, 필요시 주석 해제)
 *.yaml
