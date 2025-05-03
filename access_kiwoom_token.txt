@@ -1,5 +1,0 @@
-{
-    "access_token": "g-MxmUmttZ_LZvbkCNBykDAaOf2pFot1PcH8IHR9cwgmP4D7ovZECTzk_CzOq7UF3c8XsaWATZaVFQpGxZ2F2g",
-    "token_type": "Bearer",
-    "expires_at": "2025-05-03 22:12:57"
-}
