@@ -1,49 +1,75 @@
 @echo OFF
-REM 스크립트가 있는 폴더로 이동 (안정적인 실행을 위해)
 cd /d "%~dp0"
 
-echo portfolio_performance.py 스크립트 실행 중...
+echo Running portfolio_performance.py...
 python portfolio_performance.py
 set PYTHON_EXIT_CODE=%errorlevel%
 
-REM 파이썬 스크립트 실행 성공 여부 확인 (오류 코드 0이 정상이면)
 if %PYTHON_EXIT_CODE% neq 0 (
-  echo ERROR: portfolio_performance.py 실행 실패 (오류 코드: %PYTHON_EXIT_CODE%). Git 작업을 건너<0xEB><0x81><0x91니다.
-  pause
-  exit /b %PYTHON_EXIT_CODE%
+    echo ERROR: portfolio_performance.py failed (Exit Code: %PYTHON_EXIT_CODE%). Skipping Git operations.
+    pause
+    exit /b %PYTHON_EXIT_CODE%
 )
+echo Python script finished successfully.
 
 echo.
-echo 변경사항 확인 및 Git 푸시 시도 중...
-REM 결과 파일들을 스테이징
+echo Starting Git operations...
+
+REM Check if result files exist
+if not exist "twr_results.csv" (
+    echo ERROR: twr_results.csv not found!
+    pause
+    exit /b 1
+)
+if not exist "gain_loss.json" (
+    echo ERROR: gain_loss.json not found!
+    pause
+    exit /b 1
+)
+echo Result files exist.
+
+echo Staging files...
 git add twr_results.csv gain_loss.json
+echo Files staged.
 
-REM 스테이징된 파일 중 변경사항이 있는지 확인
+echo Checking for changes...
 git diff --cached --quiet -- twr_results.csv gain_loss.json
-REM errorlevel 1은 변경사항이 있다는 의미
-if errorlevel 1 (
-    echo 변경사항 감지. 커밋 진행 중...
-    REM 현재 날짜와 시간으로 커밋 메시지 설정
-    set COMMIT_MSG=Automated update: performance results %date% %time%
+set GIT_DIFF_EXIT_CODE=%errorlevel%
+echo Git diff exit code: %GIT_DIFF_EXIT_CODE% (0 = no changes, 1 = changes)
+
+REM --- Temporarily force commit/push for debugging (REMOVE LATER) ---
+REM echo DEBUG: Forcing commit and push regardless of changes...
+REM set GIT_DIFF_EXIT_CODE=1
+REM --- End of temporary debugging ---
+
+if %GIT_DIFF_EXIT_CODE% equ 1 (
+    echo Changes detected. Committing...
+    set CURRENT_DATETIME=%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%
+    set COMMIT_MSG=Automated update: performance results %CURRENT_DATETIME%
+    echo Commit message: "%COMMIT_MSG%"
     git commit -m "%COMMIT_MSG%"
-    if errorlevel 1 (
-      echo ERROR: Git commit 실패.
-      pause
-      exit /b 1
+    set COMMIT_EXIT_CODE=%errorlevel%
+    if %COMMIT_EXIT_CODE% neq 0 (
+        echo ERROR: Git commit failed (Exit Code: %COMMIT_EXIT_CODE%). Check git status manually.
+        git status
+        pause
+        exit /b %COMMIT_EXIT_CODE%
     )
-    echo 변경사항 푸시 중...
-    REM 중요: 'main'은 실제 사용하는 GitHub 브랜치 이름으로 변경해야 할 수 있습니다 (예: master)
-    git push origin main
-    if errorlevel 1 (
-      echo ERROR: Git push 실패. GitHub 인증 설정을 확인하세요.
-      pause
-      exit /b 1
+    echo Commit successful.
+
+    echo Pushing changes to master branch...
+    git push origin master
+    set PUSH_EXIT_CODE=%errorlevel%
+    if %PUSH_EXIT_CODE% neq 0 (
+        echo ERROR: Git push failed (Exit Code: %PUSH_EXIT_CODE%). Check GitHub credentials/connection.
+        pause
+        exit /b %PUSH_EXIT_CODE%
     )
-    echo Git 푸시 성공.
+    echo Git push successful.
 ) else (
-    echo 결과 파일에 변경사항이 없습니다. 커밋 및 푸시를 건너<0xEB><0x81><0x91니다.
+    echo No changes detected in result files. Skipping commit and push.
 )
 
 echo.
-echo 스크립트 작업 완료.
-pause REM 실행 후 창이 바로 닫히지 않도록 잠시 멈춤 (자동 실행 시에는 제거)
+echo Script finished.
+pause
