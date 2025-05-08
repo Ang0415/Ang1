@@ -91,12 +91,12 @@ def main():
     # --- ▲▲▲ 추가된 진단 부분 ▲▲▲ ---
 
     # 3. 원격 저장소 변경 사항 가져오기 (Pull --rebase)
-    print("\nStep 3: Pulling latest changes (rebase)...")
-    pull_command = ["git", "pull", remote_name, branch_name, "--rebase"]
+    print("\nStep 3: Pulling latest changes (Standard Merge)...")
+    pull_command = ["git", "pull", remote_name, branch_name, "--no-edit"]
     pull_result = run_git_command(pull_command)
     # Pull 성공 여부 확인 (returncode 0 이어야 성공)
     if pull_result is None or pull_result.returncode != 0:
-        print("ERROR: Git pull --rebase failed. Manual intervention might be needed.", file=sys.stderr)
+        print("ERROR: Git pull failed. Manual intervention might be needed.", file=sys.stderr)
         # Pull 실패 시 Stderr 내용을 이미 run_git_command 함수에서 출력했으므로 여기서는 추가 출력 생략 가능
         return
 
