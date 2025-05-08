@@ -389,13 +389,13 @@ def main():
             graph_displayed = False # 자동 실행 시에는 True로 바꾸지 않음
             # **** --- ****
             # 그래프 파일 저장 (옵션 - 필요시 주석 해제)
-            graph_filename = f"twr_performance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            graph_path = os.path.join(CURRENT_DIR, graph_filename)
-            try:
-                 plt.savefig(graph_path)
-                 print(f"✅ 그래프 파일 저장 완료: {graph_path}")
-            except Exception as e_save_fig:
-                 print(f"⚠️ 그래프 파일 저장 실패: {e_save_fig}")
+            # graph_filename = f"twr_performance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            # graph_path = os.path.join(CURRENT_DIR, graph_filename)
+            # try:
+            #     plt.savefig(graph_path)
+            #     print(f"✅ 그래프 파일 저장 완료: {graph_path}")
+            # except Exception as e_save_fig:
+            #     print(f"⚠️ 그래프 파일 저장 실패: {e_save_fig}")
             plt.close(fig) # 메모리 해제 위해 명시적 종료
         except Exception as e_graph: print(f"❌ 그래프 생성/표시 중 오류 발생: {e_graph}"); traceback.print_exc(); calculation_success = False
     # --- ---
